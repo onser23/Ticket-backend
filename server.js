@@ -8,7 +8,11 @@ const app = express();
 
 app.use(
   cors({
-    origin: ["https://ticket.webaku.az", "http://localhost:3000"],
+    origin: [
+      "https://ticket.webaku.az",
+      "http://localhost:3000",
+      "https://ticket-backend-eight.vercel.app",
+    ],
     credentials: true,
   }),
 );
