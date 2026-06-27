@@ -1,0 +1,1041 @@
+# Ticket Sistemi — Design Doc
+
+**Tarix:** 2026-06-26
+**Status:** APPROVED (Brainstorming tamamlanıb)
+**Layihə:** Müraciət Sistemi (Baxça İdarəetmə üçün problem bildirişi)
+**Stack:** Node.js + Express + MongoDB Atlas + React 19 + Tailwind
+
+---
+
+## 1. Layihənin Məqsədi
+
+Baxça İdarəetmə Sistemi istifadəçilərinin (valideynlərin, müəllimlərin və s.) yaranan problemləri rəsmi şəkildə bildirə bilməsi üçün **Ticket/Müraciət Sistemi**. Sistem iki ayrı panel təqdim edir:
+
+- **User Panel** — qeydiyyatdan keçmiş istifadəçilər (valideynlər, müəllimlər) öz şirkətləri ilə bağlı müraciət açır, status izləyir, admin ilə reply-ləşir
+- **Admin Panel** — operatorlar bütün şirkətlərin müraciətlərini görür, status dəyişir, istifadəçilərə cavab yazır, şirkətləri idarə edir
+
+### Əsas prinsiplər
+
+1. **Çox tenant:** Hər istifadəçi bir şirkətə bağlıdır, yalnız öz şirkətinin müraciətlərini görür
+2. **Təhlükəsizlik:** İki ayrı JWT secret, role-based middleware, heç bir cross-panel giriş mümkün deyil
+3. **Tam izləmə:** Hər status dəyişikliyi və admin reply email ilə istifadəçiyə bildirilir
+4. **Modern dizayn:** Kindergarten İdarəetmə Sistemi dizayn pattern-i (animated gradient, glassmorphism, blob-lar)
+
+---
+
+## 2. Texnologiya Stack
+
+### Backend (Node.js 20+)
+
+| Package | Version | Məqsəd |
+|---------|---------|--------|
+| express | ^4.18.2 | HTTP server, routing |
+| mongoose | ^8.0.0 | MongoDB ODM |
+| cors | ^2.8.5 | Cross-origin |
+| dotenv | ^16.3.1 | Env variables |
+| bcryptjs | ^2.4.3 | Password hashing |
+| jsonwebtoken | ^9.0.2 | JWT auth |
+| express-validator | ^7.0.1 | Input validation |
+| morgan | ^1.10.0 | HTTP logging |
+| **nodemailer** | ^6.9.x | Email göndərmə (YENİ) |
+| **multer** | ^1.4.x | File upload (YENİ) |
+| nodemon | ^3.0.1 | Dev server (devDep) |
+| jest | ^29.7.0 | Test runner (devDep) |
+| supertest | ^7.2.2 | API test (devDep) |
+| mongodb-memory-server | ^9.5.0 | In-memory DB test (devDep) |
+| cross-env | ^7.0.3 | Windows-friendly env (devDep) |
+
+### Frontend (React 19)
+
+| Package | Version | Məqsəd |
+|---------|---------|--------|
+| react | ^19.0.0 | UI framework |
+| react-dom | ^19.0.0 | DOM render |
+| react-router-dom | ^7.0.0 | Routing |
+| react-scripts | 5.0.1 | Build tool |
+| axios | ^1.7.0 | HTTP client |
+| react-hot-toast | ^2.4.1 | Notifications |
+| lucide-react | ^0.460.0 | Icons |
+| date-fns | ^4.1.0 | Date formatting |
+| tailwindcss | ^3.4.0 | Styling (devDep) |
+| autoprefixer | ^10.4.20 | CSS prefix (devDep) |
+| postcss | ^8.4.49 | CSS postprocess (devDep) |
+
+### Database
+
+- **MongoDB Atlas** — `mongodb+srv://samadsadade_db_user:1EEmSAn0DiBtDde7@ticket.2vlslck.mongodb.net/`
+- Database adı: `ticket_system`
+- 6 collection: `users`, `admins`, `companies`, `tickets`, `comments`, `otps`
+
+### Email Service
+
+- **Provider:** Namecheap Private Email (mail.privateemail.com)
+- **SMTP:** port 465, SSL
+- **Account:** info@zootrend.az
+- **From header:** `"Ticket Sistemi" <info@zootrend.az>`
+
+---
+
+## 3. Repo Strukturu
+
+```
+Ticket/
+├── backend/
+│   ├── server.js
+│   ├── package.json
+│   ├── .env                    # (gitignored)
+│   ├── .env.example
+│   ├── .gitignore
+│   ├── config/
+│   │   ├── db.js
+│   │   ├── mailer.js
+│   │   └── seed.js             # admin yaradır
+│   ├── middleware/
+│   │   ├── auth.js             # user JWT
+│   │   ├── adminAuth.js        # admin JWT
+│   │   ├── upload.js           # multer
+│   │   └── errorHandler.js
+│   ├── models/
+│   │   ├── User.js
+│   │   ├── Admin.js
+│   │   ├── Company.js
+│   │   ├── Ticket.js
+│   │   ├── Comment.js
+│   │   └── Otp.js
+│   ├── routes/
+│   │   ├── auth.js
+│   │   ├── adminAuth.js
+│   │   ├── tickets.js
+│   │   ├── comments.js
+│   │   ├── companies.js
+│   │   ├── stats.js
+│   │   ├── profile.js
+│   │   ├── adminProfile.js
+│   │   └── uploads.js
+│   ├── services/
+│   │   ├── emailService.js
+│   │   └── emailTemplates.js
+│   ├── utils/
+│   │   ├── jwt.js
+│   │   ├── password.js
+│   │   ├── otp.js
+│   │   └── validators.js
+│   ├── uploads/                # (gitignored)
+│   │   └── tickets/
+│   └── tests/
+│       ├── setup.js
+│       ├── auth.test.js
+│       ├── adminAuth.test.js
+│       ├── tickets.test.js
+│       ├── comments.test.js
+│       └── companies.test.js
+├── frontend/
+│   ├── package.json
+│   ├── .env                    # (gitignored)
+│   ├── .env.example
+│   ├── .gitignore
+│   ├── tailwind.config.js
+│   ├── postcss.config.js
+│   ├── public/
+│   └── src/
+│       ├── App.js
+│       ├── index.js
+│       ├── index.css
+│       ├── context/
+│       │   ├── UserAuthContext.js
+│       │   └── AdminAuthContext.js
+│       ├── utils/
+│       │   ├── userApi.js
+│       │   ├── adminApi.js
+│       │   ├── dateUtils.js
+│       │   ├── validators.js
+│       │   └── constants.js
+│       ├── components/
+│       │   ├── common/
+│       │   │   ├── OtpInput.js
+│       │   │   ├── FileUpload.js
+│       │   │   ├── ImageGallery.js
+│       │   │   ├── StatusBadge.js
+│       │   │   ├── PriorityBadge.js
+│       │   │   ├── Pagination.js
+│       │   │   ├── ConfirmModal.js
+│       │   │   ├── EmptyState.js
+│       │   │   └── Spinner.js
+│       │   ├── user/
+│       │   │   ├── UserSidebar.js
+│       │   │   └── UserTopBar.js
+│       │   ├── admin/
+│       │   │   ├── AdminSidebar.js
+│       │   │   └── AdminTopBar.js
+│       │   ├── tickets/
+│       │   │   ├── TicketCard.js
+│       │   │   ├── TicketTable.js
+│       │   │   ├── TicketFilters.js
+│       │   │   ├── TicketCreateModal.js
+│       │   │   ├── TicketDetailModal.js
+│       │   │   └── CommentThread.js
+│       │   └── layout/
+│       │       ├── UserLayout.js
+│       │       └── AdminLayout.js
+│       └── pages/
+│           ├── user/
+│           │   ├── UserLogin.js
+│           │   ├── UserRegister.js
+│           │   ├── UserVerifyOtp.js
+│           │   ├── UserForgotPassword.js
+│           │   ├── UserResetPassword.js
+│           │   ├── UserDashboard.js
+│           │   ├── UserTickets.js
+│           │   ├── UserTicketDetail.js
+│           │   └── UserProfile.js
+│           └── admin/
+│               ├── AdminLogin.js
+│               ├── AdminDashboard.js
+│               ├── AdminTickets.js
+│               ├── AdminTicketDetail.js
+│               ├── AdminCompanies.js
+│               └── AdminProfile.js
+├── docs/
+│   └── superpowers/
+│       ├── specs/
+│       └── plans/
+├── CONTEXT.md                  # Session handoff (gitignored? yox, commit)
+├── README.md                   # Layihə giriş
+└── .gitignore                  # root
+```
+
+---
+
+## 4. Data Model (6 Collection)
+
+### 4.1 `users`
+
+```js
+{
+  _id: ObjectId,
+  firstName: { type: String, required: true, minlength: 2, maxlength: 50, trim: true },
+  lastName: { type: String, required: true, minlength: 2, maxlength: 50, trim: true },
+  email: {
+    type: String,
+    required: true,
+    unique: true,
+    lowercase: true,
+    trim: true,
+    match: /^[\w.+-]+@[\w-]+\.[\w.-]+$/
+  },
+  password: { type: String, required: true, minlength: 6 }, // bcrypt hash
+  companyName: { type: String, required: true, minlength: 2, maxlength: 100, trim: true },
+  companyId: { type: ObjectId, ref: 'Company', required: true },
+  isVerified: { type: Boolean, default: false },
+  isActive: { type: Boolean, default: true },
+  createdAt: Date,
+  updatedAt: Date
+}
+```
+
+**Indexes:**
+- `email` (unique)
+- `companyId`
+
+### 4.2 `admins`
+
+```js
+{
+  _id: ObjectId,
+  username: { type: String, required: true, unique: true, default: 'admin' },
+  password: { type: String, required: true, minlength: 6 }, // bcrypt hash, default 'admin123'
+  email: { type: String, required: true, default: 'info@zootrend.az' },
+  fullName: { type: String, default: 'Administrator' },
+  createdAt: Date,
+  updatedAt: Date
+}
+```
+
+**Seed:** `config/seed.js` ilk run-da default admin yaradır (əgər yoxdursa):
+- username: `admin`
+- password: `admin123` (bcrypt hash)
+
+### 4.3 `companies`
+
+```js
+{
+  _id: ObjectId,
+  displayName: { type: String, required: true, minlength: 2, maxlength: 100, trim: true },
+  originalName: { type: String, required: true }, // user-in ilk yazdığı ad, immutable
+  ownerUserId: { type: ObjectId, ref: 'User', required: true, unique: true },
+  contactEmail: { type: String, default: null },
+  contactPhone: { type: String, default: null },
+  isActive: { type: Boolean, default: true },
+  createdAt: Date,
+  updatedAt: Date
+}
+```
+
+**Indexes:**
+- `ownerUserId` (unique)
+- `displayName` (text index — admin search üçün)
+
+**Auto-create flow:**
+1. User `POST /api/auth/register` zamanı `companyName` göndərir
+2. Backend User yaradır (`companyId: null` hələ)
+3. Backend Company yaradır: `{ displayName: req.body.companyName, originalName: req.body.companyName, ownerUserId: user._id }`
+4. Backend User-i `companyId: company._id` ilə yeniləyir
+5. (Hər iki insert atomic deyil — çox nadir hallarda problem ola bilər; SP1-də atomic transaction olacaq MongoDB 4.0+ ilə)
+
+### 4.4 `tickets`
+
+```js
+{
+  _id: ObjectId,
+  displayId: {
+    type: String,
+    sparse: true,
+    unique: true,
+    match: /^TKT-\d{3,}$/
+  }, // "TKT-001", "TKT-002"...
+  title: { type: String, required: true, minlength: 3, maxlength: 150, trim: true },
+  description: { type: String, required: true, minlength: 10, maxlength: 2000, trim: true },
+  status: {
+    type: String,
+    enum: ['pending', 'in_progress', 'resolved'],
+    default: 'pending',
+    required: true
+  },
+  priority: {
+    type: String,
+    enum: ['low', 'medium', 'high'],
+    required: true
+  },
+  companyId: { type: ObjectId, ref: 'Company', required: true },
+  createdBy: { type: ObjectId, ref: 'User', required: true },
+  attachments: [{
+    filename: { type: String, required: true },       // uuid.ext
+    originalName: { type: String, required: true },
+    mimetype: { type: String, required: true },
+    size: { type: Number, required: true },
+    path: { type: String, required: true }            // 'tickets/{uuid}.{ext}'
+  }],
+  isActive: { type: Boolean, default: true },          // soft delete flag
+  resolvedAt: { type: Date, default: null },
+  createdAt: Date,
+  updatedAt: Date
+}
+```
+
+**Indexes:**
+- `displayId` (sparse + unique)
+- `companyId + status` (compound)
+- `createdBy`
+- `status + createdAt` (admin filter)
+
+**displayId generation:**
+- Pre-save hook: `await Ticket.countDocuments()` + 1 → `TKT-${padded}`
+- Race condition qarşısının alınması: try/catch ilə duplicate key error — yenidən cəhd
+
+### 4.5 `comments`
+
+```js
+{
+  _id: ObjectId,
+  ticketId: { type: ObjectId, ref: 'Ticket', required: true },
+  authorId: { type: ObjectId, required: true, refPath: 'authorRole' },
+  authorRole: { type: String, enum: ['user', 'admin'], required: true },
+  text: { type: String, required: true, minlength: 1, maxlength: 2000, trim: true },
+  createdAt: Date,
+  updatedAt: Date
+}
+```
+
+**Indexes:**
+- `ticketId + createdAt` (compound, chronological fetch)
+
+**Polymorphic populate:**
+```js
+Comment.find({ ticketId }).populate({
+  path: 'authorId',
+  select: 'firstName lastName fullName username',
+  // refPath dinamik — mongoose refPath istifadə edir
+})
+```
+
+### 4.6 `otps`
+
+```js
+{
+  _id: ObjectId,
+  email: { type: String, required: true, lowercase: true, trim: true, index: true },
+  code: { type: String, required: true }, // bcrypt hash (6-digit plain)
+  purpose: { type: String, enum: ['register', 'reset_password'], required: true },
+  expiresAt: { type: Date, required: true, index: { expires: 0 } }, // TTL index
+  isUsed: { type: Boolean, default: false },
+  attempts: { type: Number, default: 0, max: 5 },
+  createdAt: Date
+}
+```
+
+**TTL index:** MongoDB `expiresAt`-dan sonra document avtomatik silir (10 dəqiqə).
+
+**Security:** Plain text `code` heç vaxt DB-yə yazılmır, yalnız bcrypt hash. Frontend-ə göndərilən email-də plain text görsənir.
+
+---
+
+## 5. API Endpoints
+
+### 5.1 User Auth (`/api/auth`)
+
+| Method | Path | Auth | Açıqlama |
+|--------|------|------|----------|
+| POST | `/register` | ✗ | `{ firstName, lastName, email, password, companyName }` → user yarat, company yarat, OTP email göndər, response: `{ message, email }` |
+| POST | `/verify-otp` | ✗ | `{ email, code }` → OTP yoxla, `isVerified: true`, response: `{ message }` |
+| POST | `/resend-otp` | ✗ | `{ email }` → köhnə OTP-ləri `isUsed: true` et, yeni OTP yarat və email göndər (rate limit: 60 san cooldown) |
+| POST | `/login` | ✗ | `{ email, password }` → `isVerified: true` yoxla, bcrypt match, JWT yarat, response: `{ token, user }` |
+| POST | `/forgot-password` | ✗ | `{ email }` → user mövcuddur yoxla, OTP yarat (purpose: 'reset_password'), email göndər |
+| POST | `/reset-password` | ✗ | `{ email, code, newPassword }` → OTP yoxla, password update, OTP `isUsed: true` |
+| GET | `/me` | ✓ user | Cari user-in məlumatı (company populate) |
+
+### 5.2 Admin Auth (`/api/admin/auth`)
+
+| Method | Path | Auth | Açıqlama |
+|--------|------|------|----------|
+| POST | `/login` | ✗ | `{ username, password }` → admin JWT yarat, response: `{ token, admin }` |
+| GET | `/me` | ✓ admin | Cari admin məlumatı |
+
+### 5.3 Companies (`/api/companies`) — SP2
+
+| Method | Path | Auth | Açıqlama |
+|--------|------|------|----------|
+| GET | `/` | ✓ admin | Query: `search`, `status`, `page`, `limit`. Owner populate |
+| GET | `/:id` | ✓ admin | Tək şirkət |
+| PUT | `/:id` | ✓ admin | `{ displayName, contactEmail, contactPhone, isActive }` |
+| DELETE | `/:id` | ✓ admin | Soft delete: `isActive: false` |
+
+### 5.4 Tickets (`/api/tickets`) — SP3, SP4
+
+| Method | Path | Auth | Açıqlama |
+|--------|------|------|----------|
+| GET | `/` | ✓ user/admin | **User:** öz ticket-ləri (createdBy: req.userId), filter: status, priority, dateFrom, dateTo, search, page, limit. **Admin:** bütün ticket-lər, filter: + companyId |
+| GET | `/:id` | ✓ user (own) / admin | Tək ticket, attachments populate |
+| POST | `/` | ✓ user | multipart/form-data: title, description, priority, şəkillər (max 5, 2MB each). Şirkət user-dən avtomatik. Response: ticket object |
+| PATCH | `/:id/status` | ✓ admin | `{ status }` → update, `resolvedAt` set if resolved, email trigger |
+| DELETE | `/:id` | ✓ admin | Soft delete: `isActive: false` (GET sorğularında `isActive: { $ne: false }` filter istifadə olunur) |
+
+### 5.5 Comments (`/api/comments`) — SP5
+
+| Method | Path | Auth | Açıqlama |
+|--------|------|------|----------|
+| GET | `/ticket/:ticketId` | ✓ user (own ticket) / admin | Bütün comment-lər (chronological ASC), author populate |
+| POST | `/ticket/:ticketId` | ✓ user/admin | `{ text }` → comment yarat, authorId=req.userId/adminId, authorRole, admin reply → email trigger |
+
+### 5.6 Stats (`/api/stats`) — SP6
+
+| Method | Path | Auth | Açıqlama |
+|--------|------|------|----------|
+| GET | `/user` | ✓ user | `{ total, pending, in_progress, resolved }` — user-in öz ticket-ləri |
+| GET | `/admin` | ✓ admin | `{ total, pending, in_progress, resolved, byCompany: [{companyId, displayName, count}] }` |
+
+### 5.7 User Profile (`/api/profile`) — SP2
+
+| Method | Path | Auth | Açıqlama |
+|--------|------|------|----------|
+| GET | `/` | ✓ user | Cari user (company populate) |
+| PUT | `/` | ✓ user | `{ firstName, lastName, email }` → email dəyişirsə `isVerified: false` (gələcək MVP-də skip — YAGNI) |
+| PUT | `/password` | ✓ user | `{ currentPassword, newPassword }` → current verify, bcrypt update |
+
+### 5.8 Admin Profile (`/api/admin/profile`) — SP2
+
+| Method | Path | Auth | Açıqlama |
+|--------|------|------|----------|
+| GET | `/` | ✓ admin | Cari admin |
+| PUT | `/` | ✓ admin | `{ fullName, email }` |
+| PUT | `/password` | ✓ admin | `{ currentPassword, newPassword }` |
+
+---
+
+## 6. Auth Strategiyası (Təhlükəsizlik)
+
+### JWT Configuration
+
+```js
+// utils/jwt.js
+const JWT_USER_SECRET = process.env.JWT_USER_SECRET || 'dev-user-secret-change-in-prod';
+const JWT_ADMIN_SECRET = process.env.JWT_ADMIN_SECRET || 'dev-admin-secret-change-in-prod';
+
+function signUserToken(payload) {
+  return jwt.sign(payload, JWT_USER_SECRET, { expiresIn: '24h' });
+}
+
+function verifyUserToken(token) {
+  return jwt.verify(token, JWT_USER_SECRET);
+}
+
+function signAdminToken(payload) {
+  return jwt.sign(payload, JWT_ADMIN_SECRET, { expiresIn: '12h' });
+}
+
+function verifyAdminToken(token) {
+  return jwt.verify(token, JWT_ADMIN_SECRET);
+}
+```
+
+### Middleware (tamamilə ayrı)
+
+```js
+// middleware/auth.js
+function auth(req, res, next) {
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith('Bearer ')) {
+    return res.status(401).json({ success: false, message: 'Token tələb olunur' });
+  }
+  const token = header.split(' ')[1];
+  try {
+    const payload = verifyUserToken(token);
+    req.userId = payload.userId;
+    req.userRole = 'user';
+    next();
+  } catch (err) {
+    return res.status(401).json({ success: false, message: 'Token etibarsız və ya vaxtı keçib' });
+  }
+}
+
+// middleware/adminAuth.js
+function adminAuth(req, res, next) {
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith('Bearer ')) {
+    return res.status(401).json({ success: false, message: 'Admin token tələb olunur' });
+  }
+  const token = header.split(' ')[1];
+  try {
+    const payload = verifyAdminToken(token);
+    req.adminId = payload.adminId;
+    req.userRole = 'admin';
+    next();
+  } catch (err) {
+    return res.status(401).json({ success: false, message: 'Admin token etibarsız' });
+  }
+}
+```
+
+**Kritik:** User token `verifyAdminToken` ilə yoxlanıla bilməz (fərqli secret). Eyni şey admin token üçün.
+
+### Frontend Axios Instances
+
+```js
+// utils/userApi.js
+import axios from 'axios';
+
+const userApi = axios.create({
+  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5000/api',
+});
+
+userApi.interceptors.request.use((config) => {
+  const token = localStorage.getItem('userToken');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+// utils/adminApi.js — eyni, lakin 'adminToken' localStorage key
+```
+
+### ProtectedRoute (React)
+
+```jsx
+// components/ProtectedUser.js
+function ProtectedUser({ children }) {
+  const { isAuthenticated, loading } = useUserAuth();
+  if (loading) return <Spinner />;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  return children;
+}
+
+// components/ProtectedAdmin.js — eyni, lakin useAdminAuth + /admin/login
+```
+
+---
+
+## 7. Email Service
+
+### Konfiqurasiya
+
+```js
+// config/mailer.js
+const nodemailer = require('nodemailer');
+
+const transporter = nodemailer.createTransport({
+  host: 'mail.privateemail.com',
+  port: 465,
+  secure: true,
+  auth: {
+    user: process.env.MAIL_USER,      // info@zootrend.az
+    pass: process.env.MAIL_PASSWORD   // 21Uc4UA@
+  },
+  tls: {
+    rejectUnauthorized: false  // self-signed cert uyğun (Namecheap default)
+  }
+});
+
+module.exports = transporter;
+```
+
+### Template Strukturu
+
+Hər template üçün:
+- `subject: string`
+- `html: string` (inline CSS, mobile responsive)
+- `text: string` (fallback)
+
+#### Template 1: OTP (Register/Reset)
+
+**Subject:** `[Ticket Sistemi] Email Təsdiq Kodu`
+
+**HTML struktur:**
+```
+[Gradient Header — indigo→purple]
+  📧 Logo + "Ticket Sistemi"
+
+[Body — white background, max-width 600px]
+  Hörmətli [Ad Soyad],
+
+  Email ünvanınızı təsdiq etmək üçün aşağıdakı kodu istifadə edin:
+
+  ┌─────────────────┐
+  │   123 456       │  ← 32px font, monospace, centered
+  └─────────────────┘
+
+  Bu kod 10 dəqiqə ərzində etibarlıdır.
+
+  [Footer]
+  © 2026 Ticket Sistemi · info@zootrend.az
+```
+
+#### Template 2: Status Changed (Resolved) — SP4
+
+**Subject:** `[Ticket Sistemi] Müraciətiniz həll edildi: TKT-XXX`
+
+**HTML struktur:**
+```
+[Gradient Header — green]
+  ✓ Logo + "Müraciət Həll Edildi"
+
+[Body]
+  Hörmətli [Ad Soyad],
+
+  Müraciətiniz uğurla həll edildi.
+
+  ┌─ Ticket Məlumatları ─────────┐
+  │ ID: TKT-001                  │
+  │ Başlıq: [title]              │
+  │ Prioritet: [priority badge]  │
+  │ Status: Həll Edildi (green)  │
+  │ Tarix: [createdAt]           │
+  └──────────────────────────────┘
+
+  [Login ol və bax →]  ← CTA button
+
+  [Footer]
+```
+
+#### Template 3: Admin Reply — SP5
+
+**Subject:** `[Ticket Sistemi] Admin cavab yazdı: TKT-XXX`
+
+**HTML struktur:**
+```
+[Gradient Header — blue]
+  💬 Logo + "Yeni Cavab"
+
+[Body]
+  Hörmətli [Ad Soyad],
+
+  Müraciətinizə admin cavab yazdı:
+
+  ┌─ Admin Cavabı ───────────────┐
+  │ [first 200 chars of comment] │
+  │ ...                          │
+  └──────────────────────────────┘
+
+  [Login ol və bax →]  ← CTA button
+
+  [Footer]
+```
+
+### Email Sending Logic
+
+```js
+// services/emailService.js
+async function sendEmail({ to, subject, html, text }) {
+  try {
+    await transporter.sendMail({
+      from: `"Ticket Sistemi" <${process.env.MAIL_USER}>`,
+      to,
+      subject,
+      text,
+      html
+    });
+    return { success: true };
+  } catch (err) {
+    console.error(`[EMAIL FAIL] to: ${to}, subject: ${subject}`, err.message);
+    // TODO: DB-ə failed email log (SP7 polish-də)
+    return { success: false, error: err.message };
+  }
+}
+
+module.exports = { sendEmail };
+```
+
+**Qeyd:** Email uğursuz olsa da, əsas əməliyyat uğurlu sayılır (register, status change). Bu — yaxşı UX (user bloklanmır).
+
+---
+
+## 8. File Upload
+
+### Backend Konfiqurasiya
+
+```js
+// middleware/upload.js
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
+
+const UPLOADS_DIR = path.join(__dirname, '../uploads/tickets');
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, UPLOADS_DIR),
+  filename: (req, file, cb) => {
+    const uuid = crypto.randomUUID();
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `${uuid}${ext}`);
+  }
+});
+
+const ALLOWED_MIMES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+const ALLOWED_EXTS = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
+
+const fileFilter = (req, file, cb) => {
+  const ext = path.extname(file.originalname).toLowerCase();
+  if (ALLOWED_MIMES.includes(file.mimetype) && ALLOWED_EXTS.includes(ext)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Yalnız şəkil faylları (jpg, jpeg, png, webp, gif) qəbul olunur'), false);
+  }
+};
+
+const upload = multer({
+  storage,
+  fileFilter,
+  limits: {
+    fileSize: 2 * 1024 * 1024,  // 2 MB per file
+    files: 5                     // max 5 files per ticket
+  }
+});
+
+module.exports = upload;
+```
+
+### Static Serving
+
+```js
+// server.js (SP3-də əlavə olunacaq)
+app.use('/uploads/tickets', express.static('uploads/tickets', {
+  setHeaders: (res, path) => {
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+  }
+}));
+```
+
+**Production hardening (SP7):** UUID filename artıq secure-dir (unpredictable). Əlavə auth-protected `/api/uploads/:filename` endpoint yaradıla bilər, amma MVP-də açıq serving kifayətdir.
+
+### Frontend FileUpload Komponenti
+
+**Xüsusiyyətlər:**
+- Drag-and-drop zone
+- Click to browse fallback
+- Multi-file selection
+- Thumbnail preview (FileReader → object URL)
+- Per-file: size + mimetype validation
+- Per-file remove button
+- Upload progress (axios onUploadProgress) — SP3-də
+- Disabled state when max (5) reached
+
+### ImageGallery Komponenti
+
+- Grid layout (3-4 cols desktop, 2 cols mobile)
+- Kliklə lightbox modal açılır (böyük şəkil)
+- Lazy loading (`loading="lazy"`)
+
+---
+
+## 9. Frontend Struktur
+
+### Router (App.js)
+
+```jsx
+<Routes>
+  {/* Public auth pages */}
+  <Route path="/login" element={<UserLogin />} />
+  <Route path="/register" element={<UserRegister />} />
+  <Route path="/verify-otp" element={<UserVerifyOtp />} />
+  <Route path="/forgot-password" element={<UserForgotPassword />} />
+  <Route path="/reset-password" element={<UserResetPassword />} />
+  <Route path="/admin/login" element={<AdminLogin />} />
+
+  {/* User protected */}
+  <Route element={<ProtectedUser><UserLayout /></ProtectedUser>}>
+    <Route path="/" element={<UserDashboard />} />
+    <Route path="/tickets" element={<UserTickets />} />
+    <Route path="/tickets/:id" element={<UserTicketDetail />} />
+    <Route path="/profile" element={<UserProfile />} />
+  </Route>
+
+  {/* Admin protected */}
+  <Route element={<ProtectedAdmin><AdminLayout /></ProtectedAdmin>}>
+    <Route path="/admin" element={<AdminDashboard />} />
+    <Route path="/admin/tickets" element={<AdminTickets />} />
+    <Route path="/admin/tickets/:id" element={<AdminTicketDetail />} />
+    <Route path="/admin/companies" element={<AdminCompanies />} />
+    <Route path="/admin/profile" element={<AdminProfile />} />
+  </Route>
+
+  <Route path="*" element={<Navigate to="/login" replace />} />
+</Routes>
+```
+
+### User Sidebar Menu (Kindergarten pattern)
+
+```js
+const userMenu = [
+  { path: '/', label: 'Ana Səhifə', icon: LayoutDashboard },
+  { path: '/tickets', label: 'Müraciətlərim', icon: FileText },
+  // Footer (statik):
+  { path: '/logout', label: 'Çıxış', icon: LogOut, action: 'logout' }
+];
+```
+
+### Admin Sidebar Menu
+
+```js
+const adminMenu = [
+  { path: '/admin', label: 'Ana Səhifə', icon: LayoutDashboard },
+  { path: '/admin/tickets', label: 'Müraciətlər', icon: Inbox },
+  { path: '/admin/companies', label: 'Şirkətlər', icon: Building2 },
+  // Footer (statik):
+  { path: '/logout', label: 'Çıxış', icon: LogOut, action: 'logout' }
+];
+```
+
+### TopBar (Kindergarten pattern)
+
+- Sol: Tarix (`"26 İyun, Cümə - 2026"`)
+- Sağ: Avatar + ad + dropdown
+  - Profilim (icon)
+  - Çıxış (icon, red)
+
+### Mobile Responsive
+
+- `< lg`: Sidebar slide-in (hamburger), cədvəl → card görünüşü, modal full-screen
+- `>= lg`: Sidebar sticky, cədvəl, modal centered
+
+---
+
+## 10. Təhlükəsizlik Xülasəsi
+
+| # | Təhdid | Qarşısının Alınması |
+|---|--------|---------------------|
+| 1 | User token ilə admin girişi | İki ayrı JWT secret + ayrı middleware (`auth` vs `adminAuth`) |
+| 2 | Brute-force login/OTP | Rate limiting (express-rate-limit, 15 dəq-də 5 cəhd) |
+| 3 | OTP guessing | 6-rəqəmli (1M kombination), bcrypt hash DB-də, max 5 attempt, 10 dəq TTL |
+| 4 | XSS | React default escape + `dangerouslySetInnerHTML` istifadəsi yoxdur |
+| 5 | MongoDB injection | mongoose sanitize + `$` operator filter |
+| 6 | File upload: path traversal | UUID filename (user input path-ə daxil olmur) |
+| 7 | File upload: MIME spoofing | fileFilter həm mimetype, həm extension yoxlayır |
+| 8 | File upload: DoS | multer limits.fileSize (2MB) + limits.files (5) |
+| 9 | Şifrə sızması | bcryptjs hash (10 rounds), plain text DB-də saxlanmır |
+| 10 | Email injection | nodemailer avtomatik sanitize + bizdə `from` sabitdir |
+| 11 | CORS | `cors({ origin: process.env.FRONTEND_URL })` yalnız domenə icazə |
+| 12 | CSRF | JWT header-da (cookie deyil), CSRF riski azdır, lakin SameSite cookie istifadə olunarsa əlavə (MVP-də localStorage + Bearer header) |
+| 13 | JWT expiration | User 24h, admin 12h |
+| 14 | Soft delete bypass | Mövcud endpoint-lərdə `isActive: { $ne: false }` filter (companies, tickets) |
+
+---
+
+## 11. Sub-Project Decomposition
+
+### SP1: Foundation + Auth
+**Scope:**
+- Backend: project setup, .env, db connection, mailer, User/Admin/Otp models, all auth endpoints, OTP template + email service, seed (admin)
+- Frontend: project setup, axios instances, UserAuthContext + AdminAuthContext, auth pages (User: Login/Register/VerifyOtp/Forgot/Reset, Admin: Login), ProtectedRoute komponentləri
+- Tests: auth.test.js (10-15 test), adminAuth.test.js (3-5 test)
+
+**Təxmini task:** 12-15
+
+**Çıxış:** User qeydiyyatdan keçir, OTP ilə təsdiqləyir, login olur, dashboard placeholder görür. Admin login olur, admin dashboard placeholder görür.
+
+---
+
+### SP2: Layout + Profile + Companies
+**Scope:**
+- Backend: Company model, GET/PUT/DELETE `/api/companies`, GET/PUT `/api/profile` (user), GET/PUT `/api/admin/profile`, atomic user+company register transaction
+- Frontend: UserLayout + AdminLayout komponentləri (Sidebar + TopBar + Outlet), UserSidebar/AdminSidebar (with logout), UserTopBar/AdminTopBar (date + dropdown), UserProfile + AdminProfile səhifələri, AdminCompanies səhifəsi (CRUD + search + pagination)
+- Tests: companies.test.js, profile.test.js
+
+**Təxmini task:** 10-12
+
+**Çıxış:** Hər iki panel üçün tam naviqasiya, profile edit, şirkətləri admin idarə edə bilir.
+
+---
+
+### SP3: Tickets + File Upload (User Side)
+**Scope:**
+- Backend: Ticket model, multer middleware, POST/GET `/api/tickets` (user), GET `/api/tickets/:id`, upload static serving, FileUpload validation
+- Frontend: FileUpload komponenti, ImageGallery, TicketCreateModal, UserTickets səhifəsi (list + create modal + filter), TicketTable/TicketCard komponentləri, TicketFilters
+- Tests: tickets.test.js (8-12 test, multer integration)
+
+**Təxmini task:** 12-15
+
+**Çıxış:** User müraciət yarada bilir (şəkillərlə), filter edib öz müraciətlərini görür.
+
+---
+
+### SP4: Admin Tickets + Status + Email
+**Scope:**
+- Backend: PATCH `/api/tickets/:id/status`, DELETE `/api/tickets/:id` (soft), email template "Status Changed"
+- Frontend: AdminTickets səhifəsi (filter: company, status, priority, date, search), AdminTicketDetail (status dropdown + attachments view + change history)
+- Tests: tickets-admin.test.js (6-8 test)
+
+**Təxmini task:** 8-10
+
+**Çıxış:** Admin bütün müraciətləri görür, filter edir, status dəyişdirir (resolved → email), soft delete edir.
+
+---
+
+### SP5: Reply/Comment Thread
+**Scope:**
+- Backend: Comment model, GET/POST `/api/comments/ticket/:id`, polymorphic populate, email template "Admin Reply"
+- Frontend: CommentThread komponenti, Reply form (user + admin), comment list rendering (admin/user rəng fərqi)
+- Tests: comments.test.js (8-10 test)
+
+**Təxmini task:** 8-10
+
+**Çıxış:** User və admin bir-birinə reply yaza bilir, admin reply → user email alır.
+
+---
+
+### SP6: Stats Dashboards
+**Scope:**
+- Backend: GET `/api/stats/user`, GET `/api/stats/admin`
+- Frontend: UserDashboard (4 stats cards), AdminDashboard (4 stats cards + company breakdown chart/table), EmptyState komponenti
+- Tests: stats.test.js (4-6 test)
+
+**Təxmini task:** 6-8
+
+**Çıxış:** Hər iki panel üçün real stats görsənir.
+
+---
+
+### SP7: Polish + Mobile + Final Smoke
+**Scope:**
+- Mobile responsive yekunlaşdırma (sidebar hamburger, table → card mobile)
+- Error boundary
+- Accessibility (aria-labels, keyboard nav)
+- Loading skeletons
+- README.md
+- Final manual smoke test (hər iki panel)
+
+**Təximi task:** 5-7
+
+**Çıxış:** Production-ready.
+
+---
+
+**Cəmi təxmini:** 60-80 task, 60-90 saat implementasiya (MVP)
+
+---
+
+## 12. Test Strategiyası
+
+### Backend (jest + supertest + mongodb-memory-server)
+
+- **Hər endpoint üçün:**
+  - Happy path (success)
+  - Validation failure (400)
+  - Auth failure (401)
+  - Not found (404) — uyğun olduqda
+  - Forbidden (403) — cross-user/role girişi bloklanması
+  - Edge cases (pagination, filter, search)
+
+- **Pattern:** Arrange-Act-Assert, hər test isolated (beforeEach/afterEach)
+
+- **Coverage hədəfi:** 80%+ lines
+
+### Frontend
+
+- Build keçməsi (`npm run build`)
+- Manual browser smoke test (hər SP sonunda)
+- İnteractive testing (klik, form doldurma) — automated test MVP-də YAGNI
+
+---
+
+## 13. Performance & Limits
+
+| Parametr | Limit |
+|----------|-------|
+| Image upload per file | 2 MB |
+| Images per ticket | 5 |
+| Total ticket description | 2000 chars |
+| Comment text | 2000 chars |
+| OTP length | 6 digits |
+| OTP expiration | 10 minutes |
+| OTP attempts max | 5 |
+| Rate limit (auth endpoints) | 5 / 15 min / IP |
+| JWT user expiration | 24 hours |
+| JWT admin expiration | 12 hours |
+| Pagination default | 20 items |
+| Pagination max | 100 items |
+
+---
+
+## 14. Out of Scope (MVP)
+
+Aşağıdakılar MVP-də **YOXDUR**, gələcək versiyada əlavə oluna bilər:
+
+- Multi-admin users (yalnız 1 admin)
+- Email dəyişikliyində re-verification
+- 2FA
+- Ticket categories (texniki, təmizlik, etc.)
+- CSV export
+- Charts/grafiklər (stats cədvəl kifayətdir)
+- User soft-delete / deactivate by admin
+- Admin ticket edit (title/description)
+- Ticket assignment (multiple admins)
+- SLA / priority auto-escalation
+- Notification preferences
+- Search highlighting
+- Dark mode
+- Internationalization (yalnız AZ)
+- Audit log
+
+---
+
+## 15. Success Criteria
+
+- [ ] User qeydiyyatdan keçir, email təsdiqləyir (OTP), login olur
+- [ ] User müraciət yaradır (şəkillərlə, 2MB limit), filter edir, görür
+- [ ] Admin login olur (admin/admin123), bütün müraciətləri görür
+- [ ] Admin status dəyişir → user email alır (HTML, branded)
+- [ ] User və admin reply yaza bilir, admin reply → user email
+- [ ] Şirkət dropdown user-in öz şirkətini göstərir (auto-fill)
+- [ ] Admin Şirkətlər səhifəsində redaktə edə bilir
+- [ ] User token ilə admin endpoint-ə giriş mümkün DEYİL
+- [ ] Mobile responsive (sidebar hamburger, table→card)
+- [ ] 80%+ backend test coverage, 0 regression
+
+---
+
+## 16. Açıq Suallar
+
+Hamısı həll olunub (brainstorming zamanı).
+
+---
+
+**Son:** Bu sənəd layihənin roadmapidir. İlk sub-project **SP1 (Foundation + Auth)** üçün implementation plan `docs/superpowers/plans/2026-06-26-sp1-foundation-auth.md`-də yazılacaq.

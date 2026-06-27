@@ -1,0 +1,871 @@
+# SP7 — Polish + Mobile + Final Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Layihə production-ready: mobile responsive (hamburger menu), error handling (error boundary), accessibility (aria-labels), README.md, final manual smoke test. SP7 bitdikdə: layihə production üçün hazırdır.
+
+**Architecture:**
+- **Mobile:** Sidebars (User/Admin) desktop-də gizli (lg breakpoint) — `< lg` açıq drawer, hamburger toggle düyməsi.
+- **Error Boundary:** React ErrorBoundary component (catches render errors, fallback UI).
+- **Accessibility:** aria-label əlavələri (button, link, icon), keyboard navigation.
+- **README:** Project intro, prerequisites, setup (backend + frontend), dev workflow, deployment, API endpoints summary.
+
+**Tech Stack:** mövcud
+
+**SP7 Scope:**
+- ✅ Mobile hamburger menu (drawer pattern)
+- ✅ ErrorBoundary component + wrap App
+- ✅ Accessibility (aria-labels)
+- ✅ README.md
+- ✅ Final smoke test
+
+**Reference:** Design doc §9 Mobile Responsive, §10 Security, §14 Out of Scope
+
+---
+
+## File Structure
+
+### Frontend
+
+```
+frontend/src/
+├── components/
+│   └── common/
+│       ├── ErrorBoundary.js    # YENİ
+│       └── MobileDrawer.js     # YENİ: mobile sidebar wrapper
+└── index.js                    # MODIFY: wrap with ErrorBoundary
+└── components/
+    ├── user/UserSidebar.js     # MODIFY: drawer behavior on mobile
+    └── admin/AdminSidebar.js   # MODIFY: drawer behavior on mobile
+└── components/layout/
+    ├── UserLayout.js           # MODIFY: mobile header + hamburger
+    └── AdminLayout.js          # MODIFY: mobile header + hamburger
+```
+
+### Root
+
+```
+README.md                        # YENİ
+```
+
+---
+
+## Frontend Tasks
+
+### Task F39: ErrorBoundary Component
+
+**Files:**
+- Create: `frontend/src/components/common/ErrorBoundary.js`
+
+- [ ] **Step 1: Write `frontend/src/components/common/ErrorBoundary.js`**
+
+```javascript
+import React from 'react';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
+
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('[ErrorBoundary]', error, errorInfo);
+  }
+
+  handleReload = () => {
+    window.location.reload();
+  };
+
+  handleHome = () => {
+    const role = localStorage.getItem('adminToken') ? 'admin' : 'user';
+    window.location.href = role === 'admin' ? '/admin' : '/';
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
+          <div className="bg-white rounded-2xl shadow-lg border border-slate-200 max-w-md w-full p-8 text-center">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 mb-4">
+              <AlertTriangle className="w-8 h-8 text-red-600" />
+            </div>
+            <h1 className="text-2xl font-bold text-slate-900 mb-2">Gözlənilməz xəta baş verdi</h1>
+            <p className="text-sm text-slate-600 mb-6">
+              Səhifə yüklənərkən problem yarandı. Zəhmət olmasa, səhifəni yenidən yükləyin və ya ana səhifəyə qayıdın.
+            </p>
+            {process.env.NODE_ENV === 'development' && this.state.error && (
+              <details className="mb-6 text-left">
+                <summary className="text-xs text-slate-500 cursor-pointer">Texniki detallar</summary>
+                <pre className="mt-2 text-xs text-red-700 bg-red-50 p-3 rounded overflow-auto max-h-40">
+                  {this.state.error.toString()}
+                </pre>
+              </details>
+            )}
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={this.handleHome}
+                className="flex-1 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg"
+              >
+                Ana Səhifə
+              </button>
+              <button
+                type="button"
+                onClick={this.handleReload}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Yenidən yüklə
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+export default ErrorBoundary;
+```
+
+- [ ] **Step 2: Wrap App with ErrorBoundary in `frontend/src/index.js`**
+
+Modify `frontend/src/index.js`. Replace:
+
+```javascript
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
+import { UserAuthProvider } from './context/UserAuthContext';
+import { AdminAuthProvider } from './context/AdminAuthContext';
+import App from './App';
+import ErrorBoundary from './components/common/ErrorBoundary';
+import './index.css';
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(
+  <React.StrictMode>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <UserAuthProvider>
+          <AdminAuthProvider>
+            <App />
+            <Toaster position="top-right" toastOptions={{ duration: 4000 }} />
+          </AdminAuthProvider>
+        </UserAuthProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
+  </React.StrictMode>
+);
+```
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add frontend/src/components/common/ErrorBoundary.js frontend/src/index.js
+git commit -m "feat(frontend): add ErrorBoundary component + wrap App"
+```
+
+---
+
+### Task F40: Mobile Hamburger Menu (Drawers)
+
+**Files:**
+- Create: `frontend/src/components/common/MobileDrawer.js`
+- Modify: `frontend/src/components/user/UserSidebar.js`
+- Modify: `frontend/src/components/admin/AdminSidebar.js`
+- Modify: `frontend/src/components/layout/UserLayout.js`
+- Modify: `frontend/src/components/layout/AdminLayout.js`
+
+- [ ] **Step 1: Write `frontend/src/components/common/MobileDrawer.js`**
+
+```javascript
+import React, { useEffect } from 'react';
+import { X } from 'lucide-react';
+
+const MobileDrawer = ({ open, onClose, children }) => {
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [open]);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    if (open) {
+      document.addEventListener('keydown', handler);
+      return () => document.removeEventListener('keydown', handler);
+    }
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true">
+      <div className="fixed inset-0 bg-black/50 animate-fadeIn" onClick={onClose} aria-label="Bağla" />
+      <div className="fixed inset-y-0 left-0 w-64 bg-slate-800 text-white shadow-xl animate-fadeIn">
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Menyunu bağla"
+          className="absolute top-4 right-4 text-slate-400 hover:text-white"
+        >
+          <X className="w-5 h-5" />
+        </button>
+        {children}
+      </div>
+    </div>
+  );
+};
+
+export default MobileDrawer;
+```
+
+- [ ] **Step 2: Modify `frontend/src/components/user/UserSidebar.js`**
+
+Modify `frontend/src/components/user/UserSidebar.js`. Add prop `onNavigate`:
+
+```javascript
+import React from 'react';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { LayoutDashboard, FileText, LogOut, Ticket } from 'lucide-react';
+import { useUserAuth } from '../../context/UserAuthContext';
+
+const UserSidebar = ({ onNavigate }) => {
+  const navigate = useNavigate();
+  const { user, logout } = useUserAuth();
+
+  const menu = [
+    { path: '/', label: 'Ana Səhifə', icon: LayoutDashboard, end: true },
+    { path: '/tickets', label: 'Müraciətlərim', icon: FileText },
+  ];
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
+  const handleClick = () => {
+    if (onNavigate) onNavigate();
+  };
+
+  return (
+    <aside className="flex flex-col w-64 bg-slate-800 text-white h-full">
+      <div className="p-6 border-b border-slate-700">
+        <div className="flex items-center gap-3">
+          <div className="bg-gradient-to-br from-indigo-600 to-purple-600 p-2 rounded-lg">
+            <Ticket className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <div className="font-bold text-sm">Ticket Sistemi</div>
+            <div className="text-xs text-slate-400">İstifadəçi</div>
+          </div>
+        </div>
+      </div>
+
+      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+        {menu.map((item) => (
+          <NavLink
+            key={item.path}
+            to={item.path}
+            end={item.end || false}
+            onClick={handleClick}
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                isActive ? 'bg-primary-600 text-white' : 'text-slate-300 hover:bg-slate-700'
+              }`
+            }
+          >
+            <item.icon className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
+            <span className="text-sm font-medium">{item.label}</span>
+          </NavLink>
+        ))}
+      </nav>
+
+      <div className="p-4 border-t border-slate-700">
+        <div className="px-4 py-2 mb-2 text-xs text-slate-400 truncate">
+          {user?.firstName} {user?.lastName}
+        </div>
+        <button
+          type="button"
+          onClick={handleLogout}
+          aria-label="Çıxış"
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-red-400 hover:bg-red-900/30 hover:text-red-300 transition-colors"
+        >
+          <LogOut className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
+          <span className="text-sm font-medium">Çıxış</span>
+        </button>
+      </div>
+    </aside>
+  );
+};
+
+export default UserSidebar;
+```
+
+Key changes: removed `hidden lg:flex lg:flex-col lg:w-64 ... h-screen sticky top-0` — now the sidebar is just `flex flex-col w-64` (no responsive width/positioning). Mobile drawer handles display.
+
+- [ ] **Step 3: Modify `frontend/src/components/admin/AdminSidebar.js`**
+
+Same pattern as UserSidebar. Replace `hidden lg:flex lg:flex-col lg:w-64 bg-slate-900 text-white h-screen sticky top-0` with `flex flex-col w-64 bg-slate-900 text-white h-full`. Add `onNavigate` prop, add `aria-label` to logout button.
+
+- [ ] **Step 4: Modify `frontend/src/components/layout/UserLayout.js`**
+
+```javascript
+import React, { useState } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
+import { Menu } from 'lucide-react';
+import UserSidebar from '../user/UserSidebar';
+import UserTopBar from '../user/UserTopBar';
+import MobileDrawer from '../common/MobileDrawer';
+
+const UserLayout = () => {
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const location = useLocation();
+
+  React.useEffect(() => { setDrawerOpen(false); }, [location.pathname]);
+
+  return (
+    <div className="min-h-screen bg-slate-50 flex">
+      <div className="hidden lg:block w-64 flex-shrink-0 sticky top-0 h-screen">
+        <UserSidebar />
+      </div>
+
+      <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)}>
+        <UserSidebar onNavigate={() => setDrawerOpen(false)} />
+      </MobileDrawer>
+
+      <div className="flex-1 flex flex-col min-w-0">
+        <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
+          <div className="flex items-center px-4 py-3">
+            <button
+              type="button"
+              onClick={() => setDrawerOpen(true)}
+              aria-label="Menyunu aç"
+              className="lg:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-lg mr-2"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <div className="flex-1"><UserTopBar /></div>
+          </div>
+        </header>
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-x-auto">
+          <Outlet />
+        </main>
+      </div>
+    </div>
+  );
+};
+
+export default UserLayout;
+```
+
+Note: TopBar moved inside the header so it stays sticky properly. Hamburger button only on mobile (`lg:hidden`).
+
+- [ ] **Step 5: Modify `frontend/src/components/layout/AdminLayout.js`** (same pattern)
+
+```javascript
+import React, { useState } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
+import { Menu } from 'lucide-react';
+import AdminSidebar from '../admin/AdminSidebar';
+import AdminTopBar from '../admin/AdminTopBar';
+import MobileDrawer from '../common/MobileDrawer';
+
+const AdminLayout = () => {
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const location = useLocation();
+
+  React.useEffect(() => { setDrawerOpen(false); }, [location.pathname]);
+
+  return (
+    <div className="min-h-screen bg-slate-50 flex">
+      <div className="hidden lg:block w-64 flex-shrink-0 sticky top-0 h-screen">
+        <AdminSidebar />
+      </div>
+
+      <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)}>
+        <AdminSidebar onNavigate={() => setDrawerOpen(false)} />
+      </MobileDrawer>
+
+      <div className="flex-1 flex flex-col min-w-0">
+        <header className="bg-slate-800 border-b border-slate-700 sticky top-0 z-30">
+          <div className="flex items-center px-4 py-3">
+            <button
+              type="button"
+              onClick={() => setDrawerOpen(true)}
+              aria-label="Menyunu aç"
+              className="lg:hidden p-2 text-slate-300 hover:bg-slate-700 rounded-lg mr-2"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <div className="flex-1"><AdminTopBar /></div>
+          </div>
+        </header>
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-x-auto">
+          <Outlet />
+        </main>
+      </div>
+    </div>
+  );
+};
+
+export default AdminLayout;
+```
+
+- [ ] **Step 6: Build smoke test**
+
+```powershell
+cd frontend; npm run build 2>&1 | Select-Object -Last 5
+```
+
+Expected: Build PASS.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add frontend/src/components/common/MobileDrawer.js frontend/src/components/user/UserSidebar.js frontend/src/components/admin/AdminSidebar.js frontend/src/components/layout/UserLayout.js frontend/src/components/layout/AdminLayout.js
+git commit -m "feat(frontend): mobile hamburger menu + drawer pattern + accessibility"
+```
+
+---
+
+### Task F41: README.md (Project Documentation)
+
+**Files:**
+- Create: `README.md` (project root)
+
+- [ ] **Step 1: Write `README.md`**
+
+```markdown
+# Ticket Sistemi (Müraciət Sistemi)
+
+Baxça İdarəetmə Sistemi üçün problem bildirişi (ticket/müraciət) sistemi. İstifadəçilər müraciət yaradır, admin onlara cavab verir, status izlənir, email bildirişləri göndərilir.
+
+**Stack:** Node.js + Express + MongoDB Atlas + React 19 + Tailwind CSS
+
+---
+
+## Xüsusiyyətlər
+
+- ✅ İki ayrı panel: **User** (müraciət yaratmaq) və **Admin** (müraciətləri idarə etmək)
+- ✅ OTP ilə email təsdiqi (qeydiyyat + şifrə sıfırlama)
+- ✅ Müraciət yaratmaq (başlıq, açıqlama, prioritet, **5-ə qədər şəkil**, hər biri max 2MB)
+- ✅ Status izləmə (Gözləyən → İcradadır → Həll Edildi)
+- ✅ Email bildirişləri:
+  - Qeydiyyat OTP
+  - Şifrə sıfırlama OTP
+  - Status dəyişikliyi (resolved → user)
+  - Admin cavabı (admin reply → user)
+- ✅ Şirkət self-onboarding (register zamanı şirkət avtomatik yaranır)
+- ✅ Şirkət idarəetməsi (admin): CRUD + search + filter
+- ✅ Profil: user + admin (info update + password change)
+- ✅ Stats dashboard: User öz müraciətləri, Admin bütün müraciətlər + şirkət üzrə breakdown
+- ✅ Mobile responsive (hamburger menu)
+- ✅ Production-ready təhlükəsizlik:
+  - İki ayrı JWT secret (user 24h, admin 12h)
+  - bcrypt password hash
+  - Rate limiting (60s OTP resend cooldown, 5 attempt max)
+  - File upload validation (mime + extension, 2MB/file)
+  - CORS configured
+
+---
+
+## Texniki Stack
+
+| Layer | Texnologiya |
+|-------|-------------|
+| Frontend | React 19, React Router 7, Axios, Tailwind CSS 3.4, Lucide Icons, react-hot-toast, date-fns |
+| Backend | Node.js 20+, Express 4.18, Mongoose 8, JWT (jsonwebtoken), bcryptjs, nodemailer, multer |
+| Database | MongoDB Atlas (M0 free tier) |
+| Email | Namecheap Private Email (SMTP/SSL 465) |
+| Testing | Jest + Supertest + mongodb-memory-server (in-memory) |
+
+---
+
+## Prerekvizitlər
+
+- Node.js 20+
+- npm 9+
+- MongoDB Atlas account (free tier)
+- SMTP email account (Namecheap Private Email və ya digər)
+
+---
+
+## Quraşdırma
+
+### 1. Repo klonla
+
+```bash
+git clone <repo-url>
+cd Ticket
+```
+
+### 2. Backend quraşdırma
+
+```bash
+cd backend
+npm install
+cp .env.example .env
+# .env faylını redaktə et (real credentials)
+```
+
+**`.env` nümunəsi:**
+
+```env
+PORT=5000
+NODE_ENV=development
+
+MONGODB_URI=mongodb+srv://<username>:<password>@ticket.2vlslck.mongodb.net/ticket_system
+
+JWT_USER_SECRET=change-this-to-a-strong-random-string-min-32-chars
+JWT_ADMIN_SECRET=change-this-to-another-strong-random-string-min-32-chars
+
+MAIL_HOST=mail.privateemail.com
+MAIL_PORT=465
+MAIL_USER=info@yourdomain.com
+MAIL_PASSWORD=your-smtp-password
+MAIL_FROM_NAME=Ticket Sistemi
+
+FRONTEND_URL=http://localhost:3000
+```
+
+**Admin seed (default credentials: admin / admin123):**
+
+```bash
+npm run seed
+```
+
+**Production-da `admin123` şifrəsini mütləq dəyişdirin!**
+
+### 3. Frontend quraşdırma
+
+```bash
+cd ../frontend
+npm install
+cp .env.example .env
+```
+
+**`frontend/.env`:**
+
+```env
+REACT_APP_API_URL=http://localhost:5000/api
+```
+
+---
+
+## Development Workflow
+
+### Backend run
+
+```bash
+cd backend
+npm run dev     # nodemon ilə auto-reload
+```
+
+### Frontend run
+
+```bash
+cd frontend
+npm start       # React dev server
+```
+
+### Tests
+
+```bash
+cd backend
+npm test        # bütün testlər (hazırda 85 test)
+```
+
+### Database migration (SP2 — SP1-dən qalan users üçün Company yarat)
+
+```bash
+cd backend
+npm run migrate
+```
+
+### Default admin seed
+
+```bash
+cd backend
+npm run seed
+# Default: admin / admin123 (mütləq dəyişdirin!)
+```
+
+---
+
+## Default Giriş
+
+| Panel | URL | Username / Email | Password |
+|-------|-----|------------------|----------|
+| User | `/login` | (register olun) | - |
+| Admin | `/admin/login` | `admin` | `admin123` |
+
+---
+
+## API Endpoints
+
+### Auth (`/api/auth`)
+
+| Method | Endpoint | Auth | Açıqlama |
+|--------|----------|------|----------|
+| POST | `/register` | ✗ | Yeni user + Company yarat, OTP email |
+| POST | `/verify-otp` | ✗ | Email təsdiqlə |
+| POST | `/resend-otp` | ✗ | Yeni OTP göndər (60s cooldown) |
+| POST | `/login` | ✗ | Login, JWT al |
+| POST | `/forgot-password` | ✗ | Reset OTP göndər |
+| POST | `/reset-password` | ✗ | Şifrəni sıfırla |
+| GET | `/me` | ✓ user | Cari user məlumatı |
+
+### Admin Auth (`/api/admin/auth`)
+
+| Method | Endpoint | Açıqlama |
+|--------|----------|----------|
+| POST | `/login` | Admin login |
+| GET | `/me` | Cari admin məlumatı |
+
+### Tickets (`/api/tickets`)
+
+| Method | Endpoint | Auth | Açıqlama |
+|--------|----------|------|----------|
+| GET | `/` | ✓ user/admin | User: own / Admin: all + filter (status, priority, companyId, date, search) |
+| GET | `/:id` | ✓ user/admin | Single ticket |
+| POST | `/` | ✓ user | Yeni ticket (multipart, max 5 şəkil) |
+| PATCH | `/:id/status` | ✓ admin | Status dəyişdir (resolved → email) |
+| DELETE | `/:id` | ✓ admin | Soft delete |
+
+### Comments (`/api/comments`)
+
+| Method | Endpoint | Auth | Açıqlama |
+|--------|----------|------|----------|
+| GET | `/ticket/:ticketId` | ✓ user/admin | Comment-lər (chronological) |
+| POST | `/ticket/:ticketId` | ✓ user/admin | Comment yaz (admin reply → email) |
+
+### Companies (`/api/companies`)
+
+| Method | Endpoint | Auth | Açıqlama |
+|--------|----------|------|----------|
+| GET | `/` | ✓ admin | List (search, status, pagination) |
+| GET | `/:id` | ✓ admin | Single |
+| PUT | `/:id` | ✓ admin | Update (displayName sync to User.companyName) |
+| DELETE | `/:id` | ✓ admin | Soft delete (isActive=false) |
+
+### Profile (`/api/profile`, `/api/admin/profile`)
+
+| Method | Endpoint | Auth | Açıqlama |
+|--------|----------|------|----------|
+| GET | `/` | ✓ user/admin | Cari profil |
+| PUT | `/` | ✓ user/admin | Update info |
+| PUT | `/password` | ✓ user/admin | Change password |
+
+### Stats (`/api/stats`)
+
+| Method | Endpoint | Auth | Açıqlama |
+|--------|----------|------|----------|
+| GET | `/user` | ✓ user | Own ticket counts by status |
+| GET | `/admin` | ✓ admin | All tickets + byCompany breakdown |
+
+### Static files
+
+| Path | Açıqlama |
+|------|----------|
+| `/uploads/tickets/*` | Upload edilmiş şəkillər (24h cache) |
+
+---
+
+## Data Model (8 Collection)
+
+```
+users       → firstName, lastName, email, password (hash), companyName, companyId, isVerified, isActive
+admins      → username, password (hash), email, fullName
+companies   → displayName, originalName, ownerUserId, contactEmail, contactPhone, isActive
+tickets     → displayId (auto "TKT-NNN"), title, description, status, priority, companyId, createdBy, attachments[], isActive, resolvedAt
+comments    → ticketId, authorId (refPath), authorRole (user|admin), text
+otps        → email, code (hash), purpose (register|reset_password), expiresAt (TTL), isUsed, attempts
+```
+
+---
+
+## Layihə Strukturu
+
+```
+Ticket/
+├── backend/
+│   ├── config/         # db, mailer, seed, migrate
+│   ├── middleware/     # auth, adminAuth, authOrAdmin, upload, errorHandler
+│   ├── models/         # User, Admin, Company, Ticket, Comment, Otp
+│   ├── routes/         # auth, adminAuth, tickets, comments, companies, profile, adminProfile, stats
+│   ├── services/       # emailService, emailTemplates
+│   ├── utils/          # jwt, password, otp, validators
+│   ├── tests/          # jest tests (85 tests)
+│   ├── server.js
+│   └── package.json
+├── frontend/
+│   ├── src/
+│   │   ├── components/ # common, user, admin, layout, tickets
+│   │   ├── context/    # UserAuthContext, AdminAuthContext
+│   │   ├── pages/      # UserLogin, AdminLogin, UserTickets, AdminTickets, ...
+│   │   └── utils/      # userApi, adminApi, validators, constants, dateUtils
+│   └── package.json
+├── docs/
+│   └── superpowers/
+│       ├── specs/      # design docs
+│       └── plans/      # implementation plans (SP1-SP7)
+├── CONTEXT.md          # session handoff
+└── README.md
+```
+
+---
+
+## Sub-Project Roadmap
+
+| SP | Ad | Status |
+|----|----|--------|
+| SP1 | Foundation + Auth | ✅ |
+| SP2 | Layout + Profile + Companies | ✅ |
+| SP3 | Tickets + File Upload | ✅ |
+| SP4 | Admin Tickets + Status + Email | ✅ |
+| SP5 | Reply/Comment Thread | ✅ |
+| SP6 | Stats Dashboards | ✅ |
+| SP7 | Polish + Mobile + Final | ✅ |
+
+---
+
+## Production Deployment (tövsiyə)
+
+1. **Backend:** Heroku, Railway, Render, və ya VPS (PM2 + nginx)
+2. **Frontend:** Vercel, Netlify, və ya nginx static serve
+3. **Database:** MongoDB Atlas M0 (free tier) və ya yüksək
+4. **Email:** Production SMTP (SendGrid, Mailgun, SES)
+5. **HTTPS:** Let's Encrypt + nginx reverse proxy
+6. **Process manager:** PM2 (cluster mode)
+
+---
+
+## Təhlükəsizlik Checklist
+
+- ✅ `.env` gitignored (real credentials)
+- ✅ `.env.example` placeholder credentials (commit edilə bilər)
+- ✅ İki ayrı JWT secret (user vs admin)
+- ✅ bcryptjs password hash (10 rounds)
+- ✅ OTP 6-rəqəmli, bcrypt-hashed, 10 dəq TTL, max 5 attempt
+- ✅ CORS configured (`FRONTEND_URL` env)
+- ✅ Multer file upload validation (mime + extension, 2MB max)
+- ✅ User input validation (express-validator)
+- ✅ MongoDB injection prevention (mongoose sanitize)
+- ⚠️ Rate limiting (`express-rate-limit`) — MVP-də YAGNI sayılıb, SP7 polish-ə əlavə oluna bilər
+
+---
+
+## Lisenziya
+
+Private / Proprietary
+
+---
+
+## Əlaqə
+
+**Email:** info@zootrend.az
+**Developer:** Samad Sadadli
+**Tarix:** 2026-06-27
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add README.md
+git commit -m "docs: add comprehensive README.md with setup, API, deployment guide"
+```
+
+---
+
+### Task F42: Final Smoke Test (Manual)
+
+**No code changes — manual verification checklist:**
+
+- [ ] **Backend starts:** `cd backend; npm install; npm run seed; node server.js`
+  - ✅ MongoDB connected
+  - ✅ Admin seeded (admin/admin123)
+  - ✅ Server on port 5000
+
+- [ ] **Frontend starts:** `cd frontend; npm install; npm start`
+  - ✅ Dev server on port 3000
+  - ✅ Opens in browser
+
+- [ ] **User flow:**
+  - [ ] `/register` → form fill → OTP email sent (real SMTP)
+  - [ ] `/verify-otp` → 6 digit code → user verified
+  - [ ] `/login` → token saved
+  - [ ] `/` (dashboard) → 4 stats cards (initially 0/0/0/0)
+  - [ ] `/tickets` → empty state visible
+  - [ ] "Yeni Müraciət" modal → fill form → upload image → submit
+  - [ ] Ticket created → displayId TKT-001 visible
+  - [ ] Click ticket → detail page → ImageGallery works → CommentThread empty
+
+- [ ] **Admin flow:**
+  - [ ] `/admin/login` → admin/admin123 → token saved
+  - [ ] `/admin` → 4 stats cards + byCompany table
+  - [ ] `/admin/tickets` → all tickets visible
+  - [ ] Click ticket → detail page → status dropdown → "Həll Edildi" → email sent
+  - [ ] Post admin comment → user receives "Admin Reply" email
+  - [ ] `/admin/companies` → table + search + edit modal + deactivate
+
+- [ ] **Mobile responsive:**
+  - [ ] Resize browser to < lg → sidebar collapses → hamburger button visible
+  - [ ] Click hamburger → drawer opens
+  - [ ] Click menu item → drawer auto-closes
+  - [ ] Press Escape → drawer closes
+
+- [ ] **Error handling:**
+  - [ ] Disconnect network → error banner shown
+  - [ ] Submit invalid form → validation errors shown
+  - [ ] Access /admin without login → redirected to /admin/login
+
+- [ ] **Final check:**
+  - [ ] `cd backend; npm test` → 85/85 PASS
+  - [ ] `cd frontend; npm run build` → PASS
+  - [ ] All routes load without errors
+  - [ ] No console errors in browser
+
+- [ ] **Commit verification:**
+
+```bash
+git log --oneline | head -20
+```
+
+Expected: 50+ commits, all green.
+
+- [ ] **Commit final CONTEXT.md update (last task):**
+
+```bash
+git add CONTEXT.md
+git commit -m "docs: mark SP7 done — final production-ready release"
+```
+
+---
+
+## SP7 Success Criteria
+
+- ✅ Mobile responsive (hamburger menu + drawer)
+- ✅ ErrorBoundary catches React render errors
+- ✅ Accessibility (aria-label on icon buttons)
+- ✅ README.md comprehensive documentation
+- ✅ All tests pass (85/85)
+- ✅ Frontend build PASS
+- ✅ Manual smoke test (user + admin flows work)
+
+---
+
+**Son:** Layihə production-ready. Mobile, error handling, accessibility, documentation — hamısı tamamlanıb. Repo branch: master, ~55 commits, ~7500 sətir backend + ~5500 sətir frontend. Bütün 7 sub-project tamamlanıb.
