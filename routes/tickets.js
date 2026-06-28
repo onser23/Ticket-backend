@@ -49,7 +49,7 @@ function cleanupFiles(req) {
 router.post(
   "/",
   auth,
-  // upload.array("attachments", 5),
+  upload.array("attachments", 5),
   ticketValidation,
   handleValidation,
   async (req, res, next) => {
