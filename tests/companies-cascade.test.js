@@ -104,6 +104,8 @@ describe('PUT /api/companies/:id — reaktiv + cascade (Task 5)', () => {
       displayName: 'Re MMC', originalName: 'Re MMC',
       ownerUserId: user._id, isActive: false,
     });
+    user.companyId = company._id;
+    await user.save();
 
     await request(app).put(`/api/companies/${company._id}`)
       .set('Authorization', `Bearer ${adminToken}`)
@@ -122,6 +124,8 @@ describe('PUT /api/companies/:id — reaktiv + cascade (Task 5)', () => {
     const company = await Company.create({
       displayName: 'De MMC', originalName: 'De MMC', ownerUserId: user._id,
     });
+    user.companyId = company._id;
+    await user.save();
 
     await request(app).put(`/api/companies/${company._id}`)
       .set('Authorization', `Bearer ${adminToken}`)
@@ -141,6 +145,8 @@ describe('PUT /api/companies/:id — reaktiv + cascade (Task 5)', () => {
       displayName: 'End MMC', originalName: 'End MMC',
       ownerUserId: user._id, isActive: false,
     });
+    user.companyId = company._id;
+    await user.save();
 
     await request(app).put(`/api/companies/${company._id}`)
       .set('Authorization', `Bearer ${adminToken}`)
