@@ -25,7 +25,7 @@ function handleValidation(req, res, next) {
 
 router.get('/', adminAuth, async (req, res, next) => {
   try {
-    const { search, status, page = 1, limit = 20 } = req.query;
+    const { search, status, sortBy = 'createdAt', order = 'desc', page = 1, limit = 20 } = req.query;
     const query = {};
 
     if (search && search.trim()) {
@@ -39,14 +39,48 @@ router.get('/', adminAuth, async (req, res, next) => {
     if (status === 'active') query.isActive = true;
     else if (status === 'passive') query.isActive = false;
 
+    const sortField = ['createdAt', 'ticketCount'].includes(sortBy) ? sortBy : 'createdAt';
+    const sortOrder = order === 'asc' ? 1 : -1;
     const skip = (parseInt(page, 10) - 1) * parseInt(limit, 10);
+
     const [total, companies] = await Promise.all([
       Company.countDocuments(query),
-      Company.find(query)
-        .populate('ownerUserId', 'firstName lastName email')
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(parseInt(limit, 10)),
+      Company.aggregate([
+        { $match: query },
+        { $sort: { createdAt: -1 } },
+        { $skip: skip },
+        { $limit: parseInt(limit, 10) },
+        {
+          $lookup: {
+            from: 'tickets',
+            localField: '_id',
+            foreignField: 'companyId',
+            as: 'tickets',
+          },
+        },
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'ownerUserId',
+            foreignField: '_id',
+            as: 'ownerUserId',
+          },
+        },
+        { $unwind: { path: '$ownerUserId', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            displayName: 1, originalName: 1, contactEmail: 1, contactPhone: 1,
+            isActive: 1, createdAt: 1, updatedAt: 1,
+            'ownerUserId._id': 1,
+            'ownerUserId.firstName': 1,
+            'ownerUserId.lastName': 1,
+            'ownerUserId.email': 1,
+            'ownerUserId.isVerified': 1,
+            ticketCount: { $size: '$tickets' },
+          },
+        },
+        { $sort: { [sortField]: sortOrder } },
+      ]),
     ]);
 
     res.json({
