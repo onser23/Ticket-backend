@@ -49,7 +49,7 @@ function cleanupFiles(req) {
 router.post(
   "/",
   auth,
-  upload.array("attachments", 5),
+  // upload.array("attachments", 5),
   ticketValidation,
   handleValidation,
   async (req, res, next) => {
@@ -63,13 +63,11 @@ router.post(
             !ALLOWED_EXTS.includes(ext)
           ) {
             cleanupFiles(req);
-            return res
-              .status(400)
-              .json({
-                success: false,
-                message:
-                  "Yalnız şəkil faylları (jpg, jpeg, png, webp, gif) qəbul olunur",
-              });
+            return res.status(400).json({
+              success: false,
+              message:
+                "Yalnız şəkil faylları (jpg, jpeg, png, webp, gif) qəbul olunur",
+            });
           }
         }
       }
@@ -189,12 +187,10 @@ router.get("/:id", authOrAdmin, async (req, res, next) => {
     const isOwner = ticket.createdBy._id.toString() === req.userId;
     const isAdmin = req.userRole === "admin";
     if (!isOwner && !isAdmin) {
-      return res
-        .status(403)
-        .json({
-          success: false,
-          message: "Bu müraciətə baxmaq hüququnuz yoxdur",
-        });
+      return res.status(403).json({
+        success: false,
+        message: "Bu müraciətə baxmaq hüququnuz yoxdur",
+      });
     }
 
     res.json({ success: true, data: ticket });
@@ -211,12 +207,10 @@ router.patch(
     try {
       const { status } = req.body;
       if (!["pending", "in_progress", "resolved"].includes(status)) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "Status pending/in_progress/resolved olmalıdır",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Status pending/in_progress/resolved olmalıdır",
+        });
       }
 
       const ticket = await Ticket.findById(req.params.id).populate(
