@@ -6,6 +6,15 @@ const { connectDB } = require("./config/db");
 
 const app = express();
 
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
+
 // app.use(cors({
 //   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
 //   credentials: true,
@@ -64,17 +73,11 @@ app.use((err, req, res, next) => {
 });
 
 if (require.main === module && process.env.NODE_ENV !== "test") {
-  connectDB()
-    .then(() => {
-      const PORT = process.env.PORT || 5000;
-      app.listen(PORT, () => {
-        console.log(`🚀 Server ${PORT} portunda işləyir`);
-      });
-    })
-    .catch((err) => {
-      console.error("❌ Startup xətası:", err);
-      process.exit(1);
-    });
+  const PORT = process.env.PORT || 5000;
+
+  app.listen(PORT, () => {
+    console.log(`🚀 Server ${PORT} portunda işləyir`);
+  });
 }
 
 module.exports = app;
