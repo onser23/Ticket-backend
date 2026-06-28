@@ -88,6 +88,10 @@ router.put('/:id', adminAuth, updateValidation, handleValidation, async (req, re
       return res.status(404).json({ success: false, message: 'Şirkət tapılmadı' });
     }
 
+    if (isActive !== undefined) {
+      await User.updateOne({ companyId: company._id }, { isActive });
+    }
+
     if (displayName !== undefined) {
       await User.updateMany({ companyId: company._id }, { companyName: displayName });
     }
@@ -104,7 +108,8 @@ router.delete('/:id', adminAuth, async (req, res, next) => {
     if (!company) {
       return res.status(404).json({ success: false, message: 'Şirkət tapılmadı' });
     }
-    res.json({ success: true, message: 'Şirkət deaktiv edildi' });
+    await User.updateOne({ companyId: company._id }, { isActive: false });
+    res.json({ success: true, message: 'Şirkət və istifadəçi hesabı deaktiv edildi' });
   } catch (err) {
     next(err);
   }
