@@ -162,6 +162,8 @@ describe('PUT /api/companies/:id — reaktiv + cascade (Task 5)', () => {
     const company = await Company.create({
       displayName: 'OldName', originalName: 'OldName', ownerUserId: user._id,
     });
+    user.companyId = company._id;
+    await user.save();
 
     await request(app).put(`/api/companies/${company._id}`)
       .set('Authorization', `Bearer ${adminToken}`)
