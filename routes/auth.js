@@ -170,7 +170,7 @@ router.post('/login', loginValidation, handleValidation, async (req, res, next) 
       return res.status(403).json({ success: false, message: 'Email təsdiqlənməyib. OTP kodunu yoxlayın.' });
     }
     if (!user.isActive) {
-      return res.status(403).json({ success: false, message: 'Hesab deaktiv edilib' });
+      return res.status(403).json({ success: false, message: 'Hesabınız deaktiv edilib' });
     }
 
     const match = await comparePassword(password, user.password);
@@ -255,9 +255,9 @@ router.post('/reset-password', resetPasswordValidation, handleValidation, async 
     await otp.save();
 
     const hashed = await hashPassword(newPassword);
-    await User.updateOne({ email }, { password: hashed });
+    await User.updateOne({ email }, { password: hashed, isVerified: true });
 
-    res.json({ success: true, message: 'Şifrə uğurla dəyişdirildi. İndi login ola bilərsiniz.' });
+    res.json({ success: true, message: 'Şifrə uğurla dəyişdirildi və email təsdiqləndi. İndi login ola bilərsiniz.' });
   } catch (err) {
     next(err);
   }
