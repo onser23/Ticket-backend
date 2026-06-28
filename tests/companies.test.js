@@ -57,6 +57,40 @@ describe('GET /api/companies', () => {
     const res = await request(app).get('/api/companies').set('Authorization', `Bearer ${adminToken.slice(0, -5)}xx`);
     expect(res.status).toBe(401);
   });
+
+  test('ownerUserId.isVerified field mövcuddur (Task 1)', async () => {
+    const user = await User.create({
+      firstName: 'Ali', lastName: 'Babayev',
+      email: 'verified@test.az', password: 'hashed',
+      companyName: 'Verified MMC', isVerified: true,
+    });
+    await Company.create({
+      displayName: 'Verified MMC', originalName: 'Verified MMC', ownerUserId: user._id,
+    });
+
+    const res = await request(app).get('/api/companies')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.body.data[0].ownerUserId.isVerified).toBe(true);
+  });
+
+  test('ownerUserId.email User.email-dən gəlir (Task 3)', async () => {
+    const user = await User.create({
+      firstName: 'Email', lastName: 'Test',
+      email: 'realemail@test.az', password: 'hashed',
+      companyName: 'Email MMC', isVerified: true,
+    });
+    await Company.create({
+      displayName: 'Email MMC', originalName: 'Email MMC',
+      ownerUserId: user._id,
+      contactEmail: 'wrongcompany@test.az',
+    });
+
+    const res = await request(app).get('/api/companies')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.body.data[0].ownerUserId.email).toBe('realemail@test.az');
+  });
 });
 
 describe('PUT /api/companies/:id', () => {
